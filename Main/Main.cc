@@ -45,5 +45,9 @@ int main(const int argc, const char* const* const argv)
 	// Tokenize the file
 	TOKEN_STREAM tokenStream = LexEvaluateSource(fileSource);
 
+#ifndef NDEBUG
+	LexDumpTokens(tokenStream);
+#endif
+
 	return 0;
 }

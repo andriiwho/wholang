@@ -1,9 +1,7 @@
 #include "Lexer.hh"
 #include "ConsoleUtils.hh"
 
-#include <utility>
 #include <stdexcept>
-#include <thread>
 
 struct LEXER_CONTEXT
 {
@@ -33,25 +31,7 @@ TOKEN_STREAM LexEvaluateSource(const std::string& fileContents)
 		while (token.type != TOKEN_TYPE::END_OF_FILE)
 		{
 			TSCtx.stream.tokens.push_back(token);
-
-			switch(token.type)
-			{
-				case TOKEN_TYPE::IDENTIFIER:
-				case TOKEN_TYPE::STRING_LITERAL:
-				case TOKEN_TYPE::INTEGRAL_LITERAL:
-				case TOKEN_TYPE::FLOAT_LITERAL:
-					Console::PrintLine("{} ('{}')", TOKEN_TYPE::ToString(token.type), *token.lexeme);
-					break;
-				default:
-					Console::PrintLine("{}", TOKEN_TYPE::ToString(token.type));
-					break;
-			}
-
 			token = NextToken();
-
-			using namespace std::chrono_literals;
-			// std::this_thread::sleep_for(200ms);
-			Console::Flush(Console::PRINT_MODE::NORMAL);
 		}
 	}
 	TSCtx.cursor = nullptr;
@@ -62,7 +42,19 @@ void LexDumpTokens(const TOKEN_STREAM& inStream)
 {
 	for (const auto& token : inStream.tokens)
 	{
-		Console::PrintLine("TokenType: {}, Lexeme: {}", TOKEN_TYPE::ToString(token.type), token.lexeme ? *token.lexeme : "none");
+		switch(token.type)
+		{
+			case TOKEN_TYPE::IDENTIFIER:
+			case TOKEN_TYPE::STRING_LITERAL:
+			case TOKEN_TYPE::INTEGRAL_LITERAL:
+			case TOKEN_TYPE::FLOAT_LITERAL:
+				Console::PrintLine("{} ('{}')", TOKEN_TYPE::ToString(token.type), *token.lexeme);
+				break;
+			default:
+				Console::PrintLine("{}", TOKEN_TYPE::ToString(token.type));
+				break;
+		}
+		Console::Flush(Console::PRINT_MODE::NORMAL);
 	}
 }
 
