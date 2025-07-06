@@ -42,7 +42,7 @@ void LexDumpTokens(const TOKEN_STREAM& inStream)
 {
 	for (const auto& token : inStream.tokens)
 	{
-		switch(token.type)
+		switch (token.type)
 		{
 			case TOKEN_TYPE::IDENTIFIER:
 			case TOKEN_TYPE::STRING_LITERAL:
@@ -125,6 +125,42 @@ TOKEN NextToken()
 			.line = TSCtx.line,
 			.column = TSCtx.column
 		};
+	}
+
+	// Try parse numeric literals
+	{
+		if (isdigit(c) || (c == '.' && isdigit(PeekNext())))
+		{
+			bool isFloat = c == '.';
+
+			const char* start = *TSCtx.cursor;
+			Advance();
+			while (Peek()
+				&& (isdigit(Peek()) || Peek() == '.')
+				&& Peek() != '\0')
+			{
+				if (Peek() == '.')
+				{
+					if (isFloat)
+					{
+						// TODO: Add proper diagnostics
+						throw std::runtime_error("Multiple '.' detected.");
+					}
+
+					isFloat = true;
+				}
+
+				Advance();
+			}
+
+			const std::string_view lexeme = std::string_view(start, *TSCtx.cursor - start);
+			return TOKEN{
+				.type = isFloat ? TOKEN_TYPE::FLOAT_LITERAL : TOKEN_TYPE::INTEGRAL_LITERAL,
+				.lexeme = std::string(lexeme),
+				.line = TSCtx.line,
+				.column = TSCtx.column,
+			};
+		}
 	}
 
 	// Try parse compound symbols
