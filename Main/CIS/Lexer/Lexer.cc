@@ -127,6 +127,26 @@ TOKEN NextToken()
 		};
 	}
 
+	// Try parse compound symbols
+	{
+		const char compound[] = { Peek(), PeekNext(), '\0' };
+		if (std::string_view(compound).length() >= 2)
+		{
+			const TOKEN_TYPE::TYPE tokenType = TOKEN_TYPE::FromString(std::string_view(compound));
+			if (tokenType != TOKEN_TYPE::INVALID_TOKEN && std::string_view(compound).length() >= 2)
+			{
+				Advance();
+				Advance();
+				return TOKEN{
+					.type = tokenType,
+					.lexeme = std::nullopt,
+					.line = TSCtx.line,
+					.column = TSCtx.column
+				};
+			}
+		}
+	}
+
 	// Try parse numeric literals
 	{
 		if (isdigit(c) || (c == '.' && isdigit(PeekNext())))
@@ -160,26 +180,6 @@ TOKEN NextToken()
 				.line = TSCtx.line,
 				.column = TSCtx.column,
 			};
-		}
-	}
-
-	// Try parse compound symbols
-	{
-		const char compound[] = { Peek(), PeekNext(), '\0' };
-		if (std::string_view(compound).length() >= 2)
-		{
-			const TOKEN_TYPE::TYPE tokenType = TOKEN_TYPE::FromString(std::string_view(compound));
-			if (tokenType != TOKEN_TYPE::INVALID_TOKEN && std::string_view(compound).length() >= 2)
-			{
-				Advance();
-				Advance();
-				return TOKEN{
-					.type = tokenType,
-					.lexeme = std::nullopt,
-					.line = TSCtx.line,
-					.column = TSCtx.column
-				};
-			}
 		}
 	}
 

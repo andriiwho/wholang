@@ -2,10 +2,27 @@ package main
 
 import std
 
-func add_two_numbers(a: i32, b: i32) -> i32 {
-    return a + b
-}
+export var g_test_int: i32 = 15
 
 func main() -> i32 {
-    return 0.5
+    const array = [0,1,2,3,4,5,6,7]
+    const map = {
+        "a": 3,
+        "b": 4,
+        "c": 5,
+        "d": 6
+    }
+
+    foreach var i in array {
+        if i == 5 {
+            break
+        } else {
+            continue
+        } finally {
+            println("{i}")
+        }
+    }
+
+    const str: string = "hello!"
+    return str.length()
 }
