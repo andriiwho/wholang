@@ -1,5 +1,6 @@
 #include "Lexer.hh"
 #include "ConsoleUtils.hh"
+#include "CIS/Debug/Diagnostics.hh"
 
 #include <stdexcept>
 
@@ -8,8 +9,11 @@ struct LEXER_CONTEXT
 	std::string fileContents;
 	TOKEN_STREAM stream;
 	const char** cursor{};
-	int line{};
+	int line{1};
 	int column{};
+
+	std::string filePath{};
+	std::string_view lineText{};
 };
 static thread_local LEXER_CONTEXT TSCtx;
 
@@ -21,9 +25,12 @@ static void SkipWhitespaceAndComments();
 [[nodiscard]] static bool IsIdentifierStart(char c);
 [[nodiscard]] static bool IsIdentifierChar(char c);
 
-TOKEN_STREAM LexEvaluateSource(const std::string& fileContents)
+TOKEN_STREAM LexEvaluateSource(const std::string& filePath, const std::string& fileContents)
 {
 	TSCtx = {};
+	TSCtx.filePath = filePath;
+	TSCtx.stream.filePath = filePath;
+
 	const char* cursor = fileContents.data();
 	TSCtx.cursor = &cursor;
 	{
@@ -32,6 +39,11 @@ TOKEN_STREAM LexEvaluateSource(const std::string& fileContents)
 		{
 			TSCtx.stream.tokens.push_back(token);
 			token = NextToken();
+		}
+
+		if (token.type == TOKEN_TYPE::END_OF_FILE)
+		{
+			TSCtx.stream.tokens.push_back(token);
 		}
 	}
 	TSCtx.cursor = nullptr;
@@ -149,28 +161,45 @@ TOKEN NextToken()
 
 	// Try parse numeric literals
 	{
-		if (isdigit(c) || (c == '.' && isdigit(PeekNext())))
+		if (isdigit(Peek()))
 		{
-			bool isFloat = c == '.';
-
+			bool isFloat = false;
 			const char* start = *TSCtx.cursor;
-			Advance();
-			while (Peek()
-				&& (isdigit(Peek()) || Peek() == '.')
-				&& Peek() != '\0')
-			{
-				if (Peek() == '.')
-				{
-					if (isFloat)
-					{
-						// TODO: Add proper diagnostics
-						throw std::runtime_error("Multiple '.' detected.");
-					}
 
-					isFloat = true;
+			while (isdigit(Peek()))
+			{
+				Advance();
+			}
+
+			if (Peek() == '.' && isdigit(PeekNext()))
+			{
+				isFloat = true;
+				Advance();
+				while (isdigit(Peek()))
+				{
+					Advance();
+				}
+			}
+
+			if (Peek() == 'e' || Peek() == 'E')
+			{
+				isFloat = true;
+				Advance();
+				if (Peek() == '+' || Peek() == '-')
+				{
+					Advance();
 				}
 
-				Advance();
+				while (isdigit(Peek()))
+				{
+					Advance();
+				}
+
+				if (Peek() == 'f')
+				{
+					isFloat = true;
+					Advance();
+				}
 			}
 
 			const std::string_view lexeme = std::string_view(start, *TSCtx.cursor - start);
@@ -210,7 +239,13 @@ TOKEN NextToken()
 		return ParseStringLikeLiterals('\'', TOKEN_TYPE::CHAR_LITERAL);
 	}
 
-	throw std::runtime_error(std::format("Undefined token '{}' at line: {} column {}", c, TSCtx.line, TSCtx.column));
+	DIAGNOSTICS::AddError(
+		TSCtx.filePath,
+		TSCtx.line,
+		TSCtx.column,
+		TSCtx.lineText,
+		"Undefined token '{}'",
+		c);
 }
 
 void Advance()

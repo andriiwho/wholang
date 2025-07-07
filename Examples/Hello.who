@@ -1,28 +1,21 @@
-package main
+package main.functions.generic;
 
-import std
+import std.memory;
+import std.core.types;
 
-export var g_test_int: i32 = 15
+export var g_test_int: std.core.types.i32 = 15;
+
+export type SomeStruct {
+}
+
+export func SomeStruct.newWidget() {
+
+}
+
+export func otherFunc() -> void {
+
+}
+
 
 func main() -> i32 {
-    const array = [0,1,2,3,4,5,6,7]
-    const map = {
-        "a": 3,
-        "b": 4,
-        "c": 5,
-        "d": 6
-    }
-
-    foreach var i in array {
-        if i == 5 {
-            break
-        } else {
-            continue
-        } finally {
-            println("{i}")
-        }
-    }
-
-    const str: string = "hello!"
-    return str.length()
 }

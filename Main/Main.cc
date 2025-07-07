@@ -7,6 +7,7 @@
 #include "ConsoleUtils.hh"
 #include "CommandLine.hh"
 #include "CIS/Lexer/Lexer.hh"
+#include "CIS/Parser/ParserInitialPass.hh"
 
 static std::string ReadFileToString(std::string_view path)
 {
@@ -43,11 +44,13 @@ int main(const int argc, const char* const* const argv)
 	}
 
 	// Tokenize the file
-	TOKEN_STREAM tokenStream = LexEvaluateSource(fileSource);
+	TOKEN_STREAM tokenStream = LexEvaluateSource(cmd.pathToFile, fileSource);
 
 #ifndef NDEBUG
 	LexDumpTokens(tokenStream);
 #endif
+
+	AST_NODE::PTR translationUnit = ParseTypeTree(tokenStream);
 
 	return 0;
 }

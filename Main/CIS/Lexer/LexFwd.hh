@@ -170,4 +170,5 @@ struct TOKEN
 struct TOKEN_STREAM
 {
 	std::vector<TOKEN> tokens;
+	std::string filePath;
 };
