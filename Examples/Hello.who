@@ -1,21 +1,4 @@
-package main.functions.generic;
+package main;
 
-import std.memory;
-import std.core.types;
-
-export var g_test_int: std.core.types.i32 = 15;
-
-export type SomeStruct {
-}
-
-export func SomeStruct.newWidget() {
-
-}
-
-export func otherFunc() -> void {
-
-}
-
-
-func main() -> i32 {
-}
+export var g_stuff: i32 = 5;
+export var g_other: i32 = g_stuff;

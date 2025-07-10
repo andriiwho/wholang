@@ -12,8 +12,16 @@
             "displayName": "Debug",
             "binaryDir": "${sourceDir}/build/debug",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE":"Debug"
+                "CMAKE_BUILD_TYPE": "Debug"
             }
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "test-example",
+            "description": "Test the example file",
+            "displayName": "Test Example",
+            "configurePreset": "debug"
         }
     ]
 }

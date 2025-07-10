@@ -1,7 +1,7 @@
 #include "ParserInitialPass.hh"
+#include "CIS/Debug/Diagnostics.hh"
 
 #include <optional>
-#include <format>
 #include <sstream>
 
 /**
@@ -15,12 +15,28 @@ using OPTIONAL_TOKEN = std::optional<std::reference_wrapper<const TOKEN>>;
 static thread_local const TOKEN_STREAM* STREAM = nullptr;
 static thread_local int POINTER = 0;
 
+// Valid for structs and code blocks
+static thread_local AST_NODE::WEAK_REF CURRENT_SCOPE = {};
+
 using std::nullopt;
 
 [[noreturn]]
+static void AssertStreamValid();
+
+[[noreturn]]
+static void ThrowUnknownParserError()
+{
+	DIAGNOSTICS::AddError(
+		STREAM->filePath,
+		0,
+		0,
+		{},
+		"Unknown parser error");
+}
+
 static void AssertStreamValid()
 {
-	throw std::runtime_error("STREAM is null");
+	ThrowUnknownParserError();
 }
 
 static void Advance()
@@ -97,8 +113,7 @@ static bool Match(TOKEN_TYPE::TYPE type)
 	return false;
 }
 
-template <typename... Args>
-static const TOKEN* Consume(TOKEN_TYPE::TYPE type, std::format_string<Args...> format, Args&&... args)
+static const TOKEN* Consume(TOKEN_TYPE::TYPE type)
 {
 	if (Check(type))
 	{
@@ -107,7 +122,19 @@ static const TOKEN* Consume(TOKEN_TYPE::TYPE type, std::format_string<Args...> f
 		return outToken;
 	}
 
-	throw std::runtime_error(std::format(format, std::forward<Args>(args)...));
+	if (const auto token = Deref(Peek()))
+	{
+		DIAGNOSTICS::AddError(
+			STREAM->filePath,
+			token->line,
+			token->column,
+			{},
+			"Unexpected token '{}', expected '{}'",
+			token->lexeme ? *token->lexeme : TOKEN_TYPE::ToString(token->type),
+			TOKEN_TYPE::ToString(type));
+	}
+
+	ThrowUnknownParserError();
 }
 
 [[nodiscard]]
@@ -118,7 +145,7 @@ static std::string ParseDottedIdentifiers(const TOKEN* firstToken)
 
 	while (Match(TOKEN_TYPE::DOT))
 	{
-		firstToken = Consume(TOKEN_TYPE::IDENTIFIER, "Expected identifier after .");
+		firstToken = Consume(TOKEN_TYPE::IDENTIFIER);
 		dottedName << '.' << firstToken->lexeme.value();
 	}
 
@@ -128,16 +155,16 @@ static std::string ParseDottedIdentifiers(const TOKEN* firstToken)
 [[nodiscard]]
 static AST_NODE::PTR ParsePackageDefinition()
 {
-	Consume(TOKEN_TYPE::KWD_PACKAGE, "Translation unit should always start with package definition.");
-	const TOKEN* nameToken = Consume(TOKEN_TYPE::IDENTIFIER, "Missing identifier after 'package'");
+	Consume(TOKEN_TYPE::KWD_PACKAGE);
+	const TOKEN* nameToken = Consume(TOKEN_TYPE::IDENTIFIER);
 	if (!nameToken)
 	{
-		throw std::runtime_error("nameToken is null for some reason. This should not happen.");
+		ThrowUnknownParserError();
 	}
 
 	auto packageDef = std::make_shared<AST_NODE_PACKAGE>();
 	packageDef->name = ParseDottedIdentifiers(nameToken);
-	Consume(TOKEN_TYPE::SEMICOLON, "; expected");
+	Consume(TOKEN_TYPE::SEMICOLON);
 
 	return packageDef;
 }
@@ -145,12 +172,12 @@ static AST_NODE::PTR ParsePackageDefinition()
 [[nodiscard]]
 static AST_NODE::PTR ParseImportDefinition()
 {
-	Consume(TOKEN_TYPE::KWD_IMPORT, "Unknown token, expected 'package'");
-	const auto packageName = Consume(TOKEN_TYPE::IDENTIFIER, "Unexpected token.");
+	Consume(TOKEN_TYPE::KWD_IMPORT);
+	const auto packageName = Consume(TOKEN_TYPE::IDENTIFIER);
 
 	auto importDef = std::make_shared<AST_NODE_IMPORT_DEFINITION>();
 	importDef->packageName = ParseDottedIdentifiers(packageName);
-	Consume(TOKEN_TYPE::SEMICOLON, "Expected ;");
+	Consume(TOKEN_TYPE::SEMICOLON);
 
 	return importDef;
 }
@@ -167,9 +194,9 @@ static AST_NODE::PTR ParseFuncDefinition()
 
 static AST_NODE::PTR ParseTypeAnnotation()
 {
-	Consume(TOKEN_TYPE::COLON, ": expected.");
+	Consume(TOKEN_TYPE::COLON);
 
-	const auto firstIdentifier = Consume(TOKEN_TYPE::IDENTIFIER, "Unexpected token. Expected identifier.");
+	const auto firstIdentifier = Consume(TOKEN_TYPE::IDENTIFIER);
 	std::string fullType = ParseDottedIdentifiers(firstIdentifier);
 
 	auto typeDef = std::make_shared<AST_NODE_TYPE_ANNOTATION>();
@@ -178,18 +205,83 @@ static AST_NODE::PTR ParseTypeAnnotation()
 	return typeDef;
 }
 
+static AST_NODE::PTR ParseUnresolvedSymbol()
+{
+	std::string symbolName = ParseDottedIdentifiers(Consume(TOKEN_TYPE::IDENTIFIER));
+	auto outNode = std::make_shared<AST_NODE_UNRESOLVED_SYMBOL>();
+	outNode->valueLexeme = symbolName;
+	return outNode;
+
+	// LARGE TODO: We need to parse function calls for assignments (as well as expressions)
+}
+
+static constexpr AST_NODE_TYPE LiteralTypeToASTNodeType(TOKEN_TYPE::TYPE type)
+{
+	switch (type)
+	{
+		case TOKEN_TYPE::INTEGRAL_LITERAL:
+			return AST_NODE_TYPE::INT_LITERAL;
+		case TOKEN_TYPE::FLOAT_LITERAL:
+			return AST_NODE_TYPE::FLOAT_LITERAL;
+		case TOKEN_TYPE::STRING_LITERAL:
+			return AST_NODE_TYPE::STRING_LITERAL;
+		case TOKEN_TYPE::CHAR_LITERAL:
+			return AST_NODE_TYPE::CHAR_LITERAL;
+		default:
+			break;
+	}
+
+	ThrowUnknownParserError();
+}
+
+static AST_NODE::PTR ParseLiteral()
+{
+	if (const TOKEN* token = Deref(Peek()))
+	{
+		auto ptr = std::make_shared<AST_NODE_LITERAL>(LiteralTypeToASTNodeType(token->type));
+		ptr->valueLexeme = *token->lexeme;
+		Advance();
+		return ptr;
+	}
+
+	ThrowUnknownParserError();
+}
+
+static AST_NODE::PTR ParseAssignment()
+{
+	Consume(TOKEN_TYPE::EQUALS);
+
+	if (Check(TOKEN_TYPE::IDENTIFIER))
+	{
+		auto out = ParseUnresolvedSymbol();
+		Consume(TOKEN_TYPE::SEMICOLON);
+		return out;
+	}
+
+	if (Check(TOKEN_TYPE::INTEGRAL_LITERAL) || Check(TOKEN_TYPE::STRING_LITERAL) || Check(TOKEN_TYPE::CHAR_LITERAL) || Check(TOKEN_TYPE::FLOAT_LITERAL))
+	{
+		auto out = ParseLiteral();
+		Consume(TOKEN_TYPE::SEMICOLON);
+		return out;
+	}
+
+	// TODO: This all should be replaced with return ParseExpr();
+	return nullptr;
+}
+
 static AST_NODE::PTR ParseExpr()
 {
-	return {};
+	return ParseAssignment();
 }
 
 static AST_NODE::PTR ParseDataDefinition()
 {
 	auto varDefinition = std::make_shared<AST_NODE_VAR_DEFINITION>();
+	varDefinition->scope = CURRENT_SCOPE;
 
 	Advance();
 
-	const auto name = Consume(TOKEN_TYPE::IDENTIFIER, "Unexpected token. Expected identifier");
+	const auto name = Consume(TOKEN_TYPE::IDENTIFIER);
 	varDefinition->baseName = name->lexeme.has_value() ? *name->lexeme : "unknown__";
 
 	if (Check(TOKEN_TYPE::COLON))
@@ -197,9 +289,9 @@ static AST_NODE::PTR ParseDataDefinition()
 		varDefinition->type = ParseTypeAnnotation();
 	}
 
-	if(Check(TOKEN_TYPE::EQUALS))
+	if (Check(TOKEN_TYPE::EQUALS))
 	{
-		
+		varDefinition->value = ParseExpr();
 	}
 
 	return varDefinition;
@@ -207,7 +299,7 @@ static AST_NODE::PTR ParseDataDefinition()
 
 static AST_NODE::PTR ParseExportDefinition()
 {
-	Consume(TOKEN_TYPE::KWD_EXPORT, "Export expected");
+	Consume(TOKEN_TYPE::KWD_EXPORT);
 	auto exportDef = std::make_shared<AST_NODE_EXPORT_DEFINITION>();
 
 	if (Check(TOKEN_TYPE::KWD_TYPE))
@@ -232,6 +324,7 @@ std::shared_ptr<AST_NODE_TRANSLATION_UNIT> ParseTranslationUnit()
 {
 	auto translationUnit = std::make_shared<AST_NODE_TRANSLATION_UNIT>();
 	translationUnit->package = ParsePackageDefinition();
+	CURRENT_SCOPE = translationUnit;
 
 	while (!IsAtEnd())
 	{
@@ -239,13 +332,14 @@ std::shared_ptr<AST_NODE_TRANSLATION_UNIT> ParseTranslationUnit()
 		{
 			translationUnit->children.push_back(ParseImportDefinition());
 		}
-
-		if (Check(TOKEN_TYPE::KWD_EXPORT))
+		else if (Check(TOKEN_TYPE::KWD_EXPORT))
 		{
 			translationUnit->children.push_back(ParseExportDefinition());
 		}
-
-		Advance();
+		else
+		{
+			Advance();
+		}
 	}
 
 	return translationUnit;
@@ -255,9 +349,9 @@ std::shared_ptr<AST_NODE_TRANSLATION_UNIT> ParseTypeTree(const TOKEN_STREAM& tok
 {
 	STREAM = &tokens;
 
-	// Translation unit should always start with package name
+	// Translation unit should always start with the package name
 	auto translationUnit = ParseTranslationUnit();
 	// Start parsing the package
 
-	return nullptr;
+	return translationUnit;
 }
