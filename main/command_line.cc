@@ -1,5 +1,5 @@
-#include "CommandLine.hh"
-#include "ConsoleUtils.hh"
+#include "command_line.hh"
+#include "console_utils.hh"
 
 #include <utility>
 #include <unordered_map>

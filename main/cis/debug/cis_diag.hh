@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ConsoleUtils.hh"
-#include "CIS/Lexer/LexFwd.hh"
+#include "console_utils.hh"
+#include "cis/lexer/cis_lexer_forward.hh"
 
 #include <format>
 #include <vector>
@@ -17,7 +17,7 @@ namespace DIAGNOSTICS
 		NOTE,
 	};
 
-	inline constexpr std::string_view ToString(LEVEL level)
+	inline constexpr std::string_view to_string(LEVEL level)
 	{
 		if (level == LEVEL::ERROR)
 		{
@@ -38,7 +38,7 @@ namespace DIAGNOSTICS
 		int line;
 		int column;
 		std::string message;
-		std::string_view lineText;
+		std::string_view line_text;
 	};
 
 	namespace Detail
@@ -46,10 +46,10 @@ namespace DIAGNOSTICS
 		extern std::vector<DIAGNOSTIC> SDiag;
 	} // namespace Detail
 
-	void PrintAll();
+	void print_all();
 
 	template <typename... Args>
-	void AddDiagnostic(
+	void add_diag(
 		LEVEL level,
 		std::string_view fileName,
 		int line,
@@ -64,18 +64,18 @@ namespace DIAGNOSTICS
 			.line = line,
 			.column = column,
 			.message = std::format(format, std::forward<Args>(args)...),
-			.lineText = lineText,
+			.line_text = lineText,
 		};
 		Detail::SDiag.push_back(std::move(d));
 
 		if (level == LEVEL::ERROR)
 		{
-			PrintAll();
+			print_all();
 		}
 	}
 
 	template <typename... Args>
-	void AddNote(
+	void note(
 		std::string_view fileName,
 		int line,
 		int column,
@@ -83,7 +83,7 @@ namespace DIAGNOSTICS
 		std::format_string<Args...> format,
 		Args&&... args)
 	{
-		AddDiagnostic(
+		add_diag(
 			LEVEL::NOTE,
 			fileName,
 			line,
@@ -94,7 +94,7 @@ namespace DIAGNOSTICS
 	}
 
 	template <typename... Args>
-	void AddWarning(
+	void warn(
 		std::string_view fileName,
 		int line,
 		int column,
@@ -102,7 +102,7 @@ namespace DIAGNOSTICS
 		std::format_string<Args...> format,
 		Args&&... args)
 	{
-		AddDiagnostic(
+		add_diag(
 			LEVEL::WARNING,
 			fileName,
 			line,
@@ -115,7 +115,7 @@ namespace DIAGNOSTICS
 
 	template <typename... Args>
 	[[noreturn]]
-	void AddError(
+	void error(
 		std::string_view fileName,
 		int line,
 		int column,
@@ -123,7 +123,7 @@ namespace DIAGNOSTICS
 		std::format_string<Args...> format,
 		Args&&... args)
 	{
-		AddDiagnostic(
+		add_diag(
 			LEVEL::ERROR,
 			fileName,
 			line,

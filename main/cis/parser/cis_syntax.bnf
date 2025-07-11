@@ -1,0 +1,20 @@
+translation_unit ::= { top_level_statement }
+
+top_level_statement ::= (export_definition
+    | function_definition
+    | ffi_function_definition
+    | global_var_definition
+    | type_definition) ";"
+
+export_definition ::= "export" (function_definition
+    | ffi_function_definition
+    | global_var_definition
+    | type_definition
+
+var_definition ::= ("var"|"const") identifier type_assignment "=" expr
+
+type_definition ::= "type" identifier ("restrict") "{" { member_declaration } "}"
+member_declaration ::= identifier type_assignment (",")
+
+global_var_definition ::= var_definition
+type_assignment ::= ":" ("*") ("const") identifier

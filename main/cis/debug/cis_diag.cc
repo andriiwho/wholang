@@ -1,4 +1,4 @@
-#include "Diagnostics.hh"
+#include "cis_diag.hh"
 
 #define MAX_DIAGNOSTICS
 
@@ -9,7 +9,7 @@ namespace DIAGNOSTICS
 		std::vector<DIAGNOSTIC> SDiag;
 	}
 
-	void PrintAll()
+	void print_all()
 	{
 		for(const DIAGNOSTIC& d : Detail::SDiag)
 		{
@@ -17,13 +17,13 @@ namespace DIAGNOSTICS
 				d.file,
 				d.line,
 				d.column,
-				ToString(d.level),
+				to_string(d.level),
 				d.message);
 
-			if(!d.lineText.empty())
+			if(!d.line_text.empty())
 			{
 				message += '\n';
-				message += d.lineText;
+				message += d.line_text;
 			}
 
 			Console::PrintErrorLine("{}", message);

@@ -4,10 +4,10 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "ConsoleUtils.hh"
-#include "CommandLine.hh"
-#include "CIS/Lexer/Lexer.hh"
-#include "CIS/Parser/ParserInitialPass.hh"
+#include "console_utils.hh"
+#include "command_line.hh"
+#include "CIS/Lexer/cis_lexer.hh"
+#include "CIS/Parser/cis_parser_pass_initial.hh"
 
 static std::string ReadFileToString(std::string_view path)
 {
@@ -44,13 +44,13 @@ int main(const int argc, const char* const* const argv)
 	}
 
 	// Tokenize the file
-	TOKEN_STREAM tokenStream = LexEvaluateSource(cmd.pathToFile, fileSource);
+	TOKEN_STREAM tokenStream = lex_evaluate_source(cmd.pathToFile, fileSource);
 
 #ifndef NDEBUG
-	LexDumpTokens(tokenStream);
+	lex_dump_tokens(tokenStream);
 #endif
 
-	AST_NODE::PTR translationUnit = ParseTypeTree(tokenStream);
+	AST_NODE::PTR translationUnit = parse_type_tree(tokenStream);
 
 	return 0;
 }

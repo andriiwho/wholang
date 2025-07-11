@@ -44,7 +44,7 @@ namespace TOKEN_TYPE
 		};
 	} // namespace Detail
 
-	inline std::string_view ToString(TYPE type)
+	inline std::string_view to_string(TYPE type)
 	{
 		if (const auto iter = Detail::TYPE_TO_SV_TABLE.find(type); iter != Detail::TYPE_TO_SV_TABLE.end())
 		{
@@ -170,5 +170,5 @@ struct TOKEN
 struct TOKEN_STREAM
 {
 	std::vector<TOKEN> tokens;
-	std::string filePath;
+	std::string file_path;
 };
