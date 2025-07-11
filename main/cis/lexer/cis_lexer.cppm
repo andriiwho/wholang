@@ -1,13 +1,18 @@
-#include "cis_lexer.hh"
-#include "console_utils.hh"
-#include "cis/debug/cis_diag.hh"
+module;
 
-#include <stdexcept>
+#include <string>
+#include <optional>
 
-struct LEXER_CONTEXT
+export module wholang.lexer;
+
+import wholang.console;
+import wholang.lexer.forward;
+import wholang.diag;
+
+struct LexerContext
 {
 	std::string file_contents;
-	TOKEN_STREAM stream;
+	TokenStream stream;
 	const char** cursor{};
 	int line{1};
 	int column{};
@@ -15,9 +20,9 @@ struct LEXER_CONTEXT
 	std::string file_path{};
 	std::string_view line_text{};
 };
-static thread_local LEXER_CONTEXT ts_ctx;
+static thread_local LexerContext ts_ctx;
 
-[[nodiscard]] static TOKEN next_token();
+[[nodiscard]] static Token next_token();
 [[nodiscard]] static char peek();
 [[nodiscard]] static char peek_next();
 static void advance();
@@ -25,7 +30,7 @@ static void skip_whitespaces_and_comments();
 [[nodiscard]] static bool is_identifier_start(char c);
 [[nodiscard]] static bool is_identifier_char(char c);
 
-TOKEN_STREAM lex_evaluate_source(const std::string& file_path, const std::string& file_contents)
+export TokenStream lex_evaluate_source(const std::string& file_path, const std::string& file_contents)
 {
 	ts_ctx = {};
 	ts_ctx.file_path = file_path;
@@ -34,14 +39,14 @@ TOKEN_STREAM lex_evaluate_source(const std::string& file_path, const std::string
 	const char* cursor = file_contents.data();
 	ts_ctx.cursor = &cursor;
 	{
-		TOKEN token = next_token();
-		while (token.type != TOKEN_TYPE::END_OF_FILE)
+		Token token = next_token();
+		while (token.type != TokenType::eEOF)
 		{
 			ts_ctx.stream.tokens.push_back(token);
 			token = next_token();
 		}
 
-		if (token.type == TOKEN_TYPE::END_OF_FILE)
+		if (token.type == TokenType::eEOF)
 		{
 			ts_ctx.stream.tokens.push_back(token);
 		}
@@ -50,27 +55,27 @@ TOKEN_STREAM lex_evaluate_source(const std::string& file_path, const std::string
 	return ts_ctx.stream;
 }
 
-void lex_dump_tokens(const TOKEN_STREAM& in_stream)
+export void lex_dump_tokens(const TokenStream& in_stream)
 {
 	for (const auto& token : in_stream.tokens)
 	{
 		switch (token.type)
 		{
-			case TOKEN_TYPE::IDENTIFIER:
-			case TOKEN_TYPE::STRING_LITERAL:
-			case TOKEN_TYPE::INTEGRAL_LITERAL:
-			case TOKEN_TYPE::FLOAT_LITERAL:
-				Console::PrintLine("{} ('{}')", TOKEN_TYPE::to_string(token.type), *token.lexeme);
+			case TokenType::eIdentifier:
+			case TokenType::eStringLiteral:
+			case TokenType::eIntLiteral:
+			case TokenType::eFloatLiteral:
+				console::println("{} ('{}')", TokenType::to_string(token.type), *token.lexeme);
 				break;
 			default:
-				Console::PrintLine("{}", TOKEN_TYPE::to_string(token.type));
+				console::println("{}", TokenType::to_string(token.type));
 				break;
 		}
-		Console::Flush(Console::PRINT_MODE::NORMAL);
+		console::flush(console::PrintMode::eNormal);
 	}
 }
 
-TOKEN read_stringlike_literal(char literal_start, TOKEN_TYPE::TYPE type)
+Token read_stringlike_literal(char literal_start, TokenType::Type type)
 {
 	const char* start = *ts_ctx.cursor;
 	advance();
@@ -84,8 +89,8 @@ TOKEN read_stringlike_literal(char literal_start, TOKEN_TYPE::TYPE type)
 		advance();
 	}
 
-	const std::string_view lexeme = std::string_view(start, *ts_ctx.cursor - start);
-	return TOKEN{
+	const auto lexeme = std::string_view(start, *ts_ctx.cursor - start);
+	return Token{
 		.type = type,
 		.lexeme = std::string(lexeme),
 		.line = ts_ctx.line,
@@ -93,14 +98,14 @@ TOKEN read_stringlike_literal(char literal_start, TOKEN_TYPE::TYPE type)
 	};
 }
 
-TOKEN next_token()
+Token next_token()
 {
 	skip_whitespaces_and_comments();
 
 	if (peek() == '\0')
 	{
-		return TOKEN{
-			TOKEN_TYPE::END_OF_FILE,
+		return Token{
+			TokenType::eEOF,
 			std::nullopt,
 			ts_ctx.line,
 			ts_ctx.column
@@ -120,10 +125,10 @@ TOKEN next_token()
 
 		// Parse keywords
 		const std::string_view lexeme = std::string_view(start, *ts_ctx.cursor - start);
-		const TOKEN_TYPE::TYPE tokenType = TOKEN_TYPE::FromString(lexeme);
-		if (tokenType != TOKEN_TYPE::INVALID_TOKEN)
+		const TokenType::Type tokenType = TokenType::from_string(lexeme);
+		if (tokenType != TokenType::INVALID_TOKEN)
 		{
-			return TOKEN{
+			return Token{
 				.type = tokenType,
 				.lexeme = std::string(lexeme),
 				.line = ts_ctx.line,
@@ -131,8 +136,8 @@ TOKEN next_token()
 			};
 		}
 
-		return TOKEN{
-			.type = TOKEN_TYPE::IDENTIFIER,
+		return Token{
+			.type = TokenType::eIdentifier,
 			.lexeme = std::string(lexeme),
 			.line = ts_ctx.line,
 			.column = ts_ctx.column
@@ -144,13 +149,13 @@ TOKEN next_token()
 		const char compound[] = { peek(), peek_next(), '\0' };
 		if (std::string_view(compound).length() >= 2)
 		{
-			const TOKEN_TYPE::TYPE token_type = TOKEN_TYPE::FromString(std::string_view(compound));
-			if (token_type != TOKEN_TYPE::INVALID_TOKEN && std::string_view(compound).length() >= 2)
+			const TokenType::Type TokenType = TokenType::from_string(std::string_view(compound));
+			if (TokenType != TokenType::INVALID_TOKEN && std::string_view(compound).length() >= 2)
 			{
 				advance();
 				advance();
-				return TOKEN{
-					.type = token_type,
+				return Token{
+					.type = TokenType,
 					.lexeme = std::nullopt,
 					.line = ts_ctx.line,
 					.column = ts_ctx.column
@@ -203,8 +208,8 @@ TOKEN next_token()
 			}
 
 			const std::string_view lexeme = std::string_view(start, *ts_ctx.cursor - start);
-			return TOKEN{
-				.type = isFloat ? TOKEN_TYPE::FLOAT_LITERAL : TOKEN_TYPE::INTEGRAL_LITERAL,
+			return Token{
+				.type = isFloat ? TokenType::eFloatLiteral : TokenType::eIntLiteral,
 				.lexeme = std::string(lexeme),
 				.line = ts_ctx.line,
 				.column = ts_ctx.column,
@@ -215,11 +220,11 @@ TOKEN next_token()
 	// Parse single symbols
 	{
 		char cursor_symbol_buffer[2] = { c, '\0' };
-		const TOKEN_TYPE::TYPE tokenType = TOKEN_TYPE::FromString(std::string_view(cursor_symbol_buffer));
-		if (tokenType != TOKEN_TYPE::INVALID_TOKEN)
+		const TokenType::Type tokenType = TokenType::from_string(std::string_view(cursor_symbol_buffer));
+		if (tokenType != TokenType::INVALID_TOKEN)
 		{
 			advance();
-			return TOKEN{
+			return Token{
 				.type = tokenType,
 				.lexeme = std::nullopt,
 				.line = ts_ctx.line,
@@ -231,15 +236,15 @@ TOKEN next_token()
 	// Parse string literals
 	if (c == '"')
 	{
-		return read_stringlike_literal('"', TOKEN_TYPE::STRING_LITERAL);
+		return read_stringlike_literal('"', TokenType::eStringLiteral);
 	}
 
 	if (c == '\'')
 	{
-		return read_stringlike_literal('\'', TOKEN_TYPE::CHAR_LITERAL);
+		return read_stringlike_literal('\'', TokenType::eCharLiteral);
 	}
 
-	DIAGNOSTICS::error(
+	diag::error(
 		ts_ctx.file_path,
 		ts_ctx.line,
 		ts_ctx.column,

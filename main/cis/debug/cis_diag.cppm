@@ -1,39 +1,39 @@
-#pragma once
+module;
 
-#include "console_utils.hh"
-#include "cis/lexer/cis_lexer_forward.hh"
-
-#include <format>
-#include <vector>
-#include <string>
 #include <string_view>
+#include <string>
+#include <vector>
+#include <format>
 
-namespace DIAGNOSTICS
+export module wholang.diag;
+
+import wholang.console;
+
+namespace diag
 {
-	enum class LEVEL
+	export enum class ELevel
 	{
-		ERROR,
-		WARNING,
-		NOTE,
+		eError,
+		eWarning,
+		eNote,
 	};
 
-	inline constexpr std::string_view to_string(LEVEL level)
+	export constexpr std::string_view to_string(const ELevel level)
 	{
-		if (level == LEVEL::ERROR)
+		if (level == ELevel::eError)
 		{
 			return "error";
 		}
-		else if (level == LEVEL::WARNING)
+		if (level == ELevel::eWarning)
 		{
 			return "warning";
 		}
-		else
-			return "note";
+		return "note";
 	}
 
-	struct DIAGNOSTIC
+	struct Diagnostic
 	{
-		LEVEL level;
+		ELevel level;
 		std::string_view file;
 		int line;
 		int column;
@@ -41,24 +41,49 @@ namespace DIAGNOSTICS
 		std::string_view line_text;
 	};
 
-	namespace Detail
+	namespace detail
 	{
-		extern std::vector<DIAGNOSTIC> SDiag;
-	} // namespace Detail
+		std::vector<Diagnostic> SDiag;
+	} // namespace detail
 
-	void print_all();
+	export void print_all()
+	{
+
+		for (const Diagnostic& d : detail::SDiag)
+		{
+			std::string message = std::format("{}: {}:{}: {}: {}",
+				d.file,
+				d.line,
+				d.column,
+				to_string(d.level),
+				d.message);
+
+			if (!d.line_text.empty())
+			{
+				message += '\n';
+				message += d.line_text;
+			}
+
+			console::printerrln("{}", message);
+		}
+
+		detail::SDiag.clear();
+
+		console::flush(console::PrintMode::eNormal);
+		console::flush(console::PrintMode::eError);
+	}
 
 	template <typename... Args>
 	void add_diag(
-		LEVEL level,
-		std::string_view fileName,
-		int line,
-		int column,
-		std::string_view lineText,
+		const ELevel level,
+		const std::string_view fileName,
+		const int line,
+		const int column,
+		const std::string_view lineText,
 		std::format_string<Args...> format,
 		Args&&... args)
 	{
-		DIAGNOSTIC d{
+		Diagnostic d{
 			.level = level,
 			.file = fileName,
 			.line = line,
@@ -66,15 +91,15 @@ namespace DIAGNOSTICS
 			.message = std::format(format, std::forward<Args>(args)...),
 			.line_text = lineText,
 		};
-		Detail::SDiag.push_back(std::move(d));
+		detail::SDiag.push_back(std::move(d));
 
-		if (level == LEVEL::ERROR)
+		if (level == ELevel::eError)
 		{
 			print_all();
 		}
 	}
 
-	template <typename... Args>
+	export template <typename... Args>
 	void note(
 		std::string_view fileName,
 		int line,
@@ -84,7 +109,7 @@ namespace DIAGNOSTICS
 		Args&&... args)
 	{
 		add_diag(
-			LEVEL::NOTE,
+			ELevel::eNote,
 			fileName,
 			line,
 			column,
@@ -93,7 +118,7 @@ namespace DIAGNOSTICS
 			std::forward<Args>(args)...);
 	}
 
-	template <typename... Args>
+	export template <typename... Args>
 	void warn(
 		std::string_view fileName,
 		int line,
@@ -103,7 +128,7 @@ namespace DIAGNOSTICS
 		Args&&... args)
 	{
 		add_diag(
-			LEVEL::WARNING,
+			ELevel::eWarning,
 			fileName,
 			line,
 			column,
@@ -112,8 +137,7 @@ namespace DIAGNOSTICS
 			std::forward<Args>(args)...);
 	}
 
-
-	template <typename... Args>
+	export template <typename... Args>
 	[[noreturn]]
 	void error(
 		std::string_view fileName,
@@ -124,7 +148,7 @@ namespace DIAGNOSTICS
 		Args&&... args)
 	{
 		add_diag(
-			LEVEL::ERROR,
+			ELevel::eError,
 			fileName,
 			line,
 			column,
@@ -133,5 +157,4 @@ namespace DIAGNOSTICS
 			std::forward<Args>(args)...);
 		throw std::runtime_error("Exception. See errors above.");
 	}
-
-} // namespace DIAGNOSTICS
+} // namespace diag
